@@ -1,0 +1,14 @@
+.Rproj.user
+.Rhistory
+.Rdata
+.httr-oauth
+.DS_Store
+.quarto
+
+/plots/
+/outputs/
+/pictures/
+/maps/
+/manuscript/
+
+private_data.R
