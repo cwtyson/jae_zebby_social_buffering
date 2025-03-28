@@ -1,0 +1,68 @@
+## Run multiple brms models on modularity ~ temp/wind
+
+## Housekeeping #####
+library(bisonR)
+library(tidyverse)
+library(brms)
+library(tidybayes)
+library(modelr)
+
+## Read in data  ########
+gd_df <- readRDS("./outputs/sna/ewms.RDS") 
+
+## Scale mean temp and mean wind
+gd_df <- gd_df %>%
+  group_by(samp) %>%
+  mutate(hour = as.numeric(scale(hour)),
+         mean_temp = as.numeric(scale(mean_temp)),
+         mean_wind = as.numeric(scale(mean_wind)))
+
+
+## Split into list
+gd_df_lists <- split(gd_df, 
+                     ~samp,
+                     ~day_hr, drop=TRUE)
+
+## Fit once with lm
+lm_vif = lm(modularity ~ poly(hour, 2) + mean_wind*mean_temp,data=gd_df_lists[[1]])
+car::vif(lm_vif)
+
+
+## Number of data points
+n_distinct(gd_df_lists[[1]]$day_hr)
+
+## Run brms_multiple on modularity ########
+
+## Set priors
+mdl_formula <- bf(modularity ~ poly(hour, 2) + mean_wind*mean_temp)
+(prior = default_prior(mdl_formula, gd_df_lists[[1]]))
+
+## Run brm multiple
+mod_mods <- brm_multiple(
+  
+  ## Define model formula
+  formula = mdl_formula,
+  
+  ## Iterations
+  iter = 10000,
+  
+  ## Cores
+  cores = 4,
+  
+  control = list(max_treedepth = 20),
+  
+  ## List of data frames
+  data = gd_df_lists,
+  
+  ## Set priors
+  prior = c(
+    # prior(normal(0, 1), class = b, coef = "inds"),
+    prior(normal(0, 1), class = b, coef = "mean_temp"),
+    prior(normal(0, 1), class = b, coef = "mean_wind"),
+    prior(normal(0, 1), class = b, coef = "mean_wind:mean_temp"),
+    prior(normal(0, 1), class = b, coef = "polyhour21"),
+    prior(normal(0, 1), class = b, coef = "polyhour22")
+  )
+)
+
+saveRDS(mod_mods, "./outputs/models/modularity_brms.RDS")
